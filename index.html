@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Comparação de Preços</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{--g:#1f6f43;--g2:#2e8b57;--p:#5b2a86;--y:#a8870f;--bg:#f2f7f3;--card:#fff;--tx:#1b2a21;--bd:#d5e3da;--ok:#c8ecd6;--eq:#f3e3a0;--up:#f6c6c6;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#101a14;--card:#18261e;--tx:#e6f0e9;--bd:#2c4235;--ok:#1f5a3a;--eq:#6b5a14;--up:#7a2c2c}}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--tx);display:flex;min-height:100vh}
+nav{width:220px;background:linear-gradient(180deg,var(--g),var(--p));color:#fff;padding:16px 10px;display:flex;flex-direction:column;gap:6px;flex-shrink:0}
+nav h1{font-size:17px;margin:0 6px 12px;border-bottom:3px solid var(--y);padding-bottom:8px}
+nav button{background:transparent;color:#fff;border:0;text-align:left;padding:10px 12px;border-radius:8px;font-size:14px;cursor:pointer}
+nav button:hover,nav button.on{background:rgba(255,255,255,.18);box-shadow:inset 3px 0 var(--y)}
+main{flex:1;padding:20px;min-width:0}
+h2{margin:0 0 14px;color:var(--g)}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:14px;margin-bottom:14px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+label,.lb{display:flex;flex-direction:column;font-size:12px;gap:3px;font-weight:600}
+.mp{position:relative;display:block}.mp input{cursor:pointer;width:100%}
+.mpb{position:absolute;top:100%;left:0;z-index:20;width:230px;margin-top:4px;background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:10px;box-shadow:0 6px 18px rgba(0,0,0,.25)}.mpb[hidden]{display:none}
+.mph{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;color:var(--p);font-size:15px}
+.mpg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.mpg button{padding:9px 0;border:1px solid var(--bd);border-radius:6px;background:var(--card);color:var(--tx);cursor:pointer;font-size:13px}.mpg button:hover{border-color:var(--g2)}.mpg button.on{background:var(--p);color:#fff;border-color:var(--p)}
+input,select{padding:8px;border:1px solid var(--bd);border-radius:6px;background:var(--card);color:var(--tx);font-size:14px;min-width:130px}
+.b{background:var(--g2);color:#fff;border:0;padding:9px 14px;border-radius:6px;cursor:pointer;font-size:13px}
+.b.p{background:var(--p)}.b.y{background:var(--y)}.b.r{background:#a33}.b.s{padding:5px 9px;font-size:12px}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:8px;border-bottom:1px solid var(--bd);text-align:left;white-space:nowrap}
+th{background:var(--g);color:#fff}
+td.ok{background:var(--ok)}td.eq{background:var(--eq)}td.up{background:var(--up)}
+.chk{display:flex;flex-wrap:wrap;gap:8px}.chk label{flex-direction:row;align-items:center;font-weight:400;font-size:14px}.chk input{min-width:0}
+.leg span{padding:3px 8px;border-radius:4px;font-size:12px;margin-right:6px}
+@media(max-width:700px){body{flex-direction:column}nav{width:100%;flex-direction:row;flex-wrap:wrap}nav h1{width:100%}}
+</style>
+</head>
+<body>
+<nav id="nav"></nav>
+<main id="main"></main>
+<script>
+var KEY="comparacao_precos_v1",S={prods:[],forns:[],nfs:[]},view="nf",edit=null;
+try{var r=localStorage.getItem(KEY);if(r)S=JSON.parse(r)}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function money(v){return Number(v).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}
+function nm(list,id){var o=list.find(function(x){return x.id===id});return o?o.nome:"—"}
+function mlabel(m){var p=m.split("-");return p[1]+"/"+p[0]}
+function $(id){return document.getElementById(id)}
+var MENU=[["nf","Entrada de NF"],["prod","Produto"],["forn","Fornecedor"],["comp","Comparativo"],["pdf","Relatório PDF"],["bkp","Backup"]];
+function go(v){view=v;edit=null;draw()}
+function draw(){
+ $("nav").innerHTML="<h1>Comparação de Preços</h1>"+MENU.map(function(m){return '<button class="'+(m[0]===view?"on":"")+'" onclick="go(\''+m[0]+'\')">'+m[1]+'</button>'}).join("");
+ var f={nf:vNF,prod:function(){return vCad("prod","Produtos","prods")},forn:function(){return vCad("forn","Fornecedores","forns")},comp:vComp,pdf:vPdf,bkp:vBkp}[view];
+ $("main").innerHTML=f();
+}
+/* ENTRADA DE NF */
+function vNF(){
+ var e=S.nfs.find(function(x){return x.id===edit})||{};
+ var opt=function(l,sel){return '<option value="">Selecione</option>'+l.map(function(o){return '<option value="'+o.id+'"'+(o.id===sel?" selected":"")+'>'+esc(o.nome)+'</option>'}).join("")};
+ var rows=S.nfs.slice().sort(function(a,b){return b.mes.localeCompare(a.mes)}).map(function(n){
+  return '<tr><td>'+mlabel(n.mes)+'</td><td>'+esc(n.nf)+'</td><td>'+esc(nm(S.forns,n.forn))+'</td><td>'+esc(nm(S.prods,n.prod))+'</td><td>'+money(n.valor)+'</td><td><button class="b s y" onclick="edit=\''+n.id+'\';draw()">Editar</button> <button class="b s r" onclick="delNF(\''+n.id+'\')">Excluir</button></td></tr>'}).join("");
+ return '<h2>Entrada de NF</h2><div class="card"><div class="row">'+
+ '<div class="lb">Mês/Ano<span class="mp"><input id="fm" readonly placeholder="Clique para escolher" data-v="'+(e.mes||"")+'" value="'+(e.mes?mlabel(e.mes):"")+'" onclick="mpOpen()"><div id="mpb" class="mpb" hidden></div></span></div>'+
+ '<label>Nº da NF<input id="fn" value="'+esc(e.nf)+'"></label>'+
+ '<label>Fornecedor<select id="ff">'+opt(S.forns,e.forn)+'</select></label>'+
+ '<label>Item<select id="fi">'+opt(S.prods,e.prod)+'</select></label>'+
+ '<label>Valor (R$)<input type="number" step="0.01" min="0" id="fv" value="'+(e.valor!=null?e.valor:"")+'"></label>'+
+ '<button class="b" onclick="saveNF()">'+(edit?"Salvar alteração":"Adicionar")+'</button>'+(edit?' <button class="b p" onclick="go(\'nf\')">Cancelar</button>':"")+
+ '</div></div><div class="card tw"><table><tr><th>Mês/Ano</th><th>Nº NF</th><th>Fornecedor</th><th>Item</th><th>Valor</th><th>Ações</th></tr>'+(rows||'<tr><td colspan="6">Nenhuma entrada.</td></tr>')+'</table></div>';
+}
+var MP={y:new Date().getFullYear()};
+function mpOpen(){var v=$("fm").dataset.v;if(v)MP.y=+v.split("-")[0];mpDraw();$("mpb").hidden=false}
+function mpDraw(){var v=$("fm").dataset.v,N=["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];$("mpb").innerHTML='<div class="mph"><button type="button" class="b s" onclick="event.stopPropagation();MP.y--;mpDraw()">‹</button><b>'+MP.y+'</b><button type="button" class="b s" onclick="event.stopPropagation();MP.y++;mpDraw()">›</button></div><div class="mpg">'+N.map(function(n,k){var m=MP.y+"-"+("0"+(k+1)).slice(-2);return '<button type="button" class="'+(m===v?"on":"")+'" onclick="mpSet(\''+m+'\')">'+n+'</button>'}).join("")+'</div>'}
+function mpSet(m){var i=$("fm");i.dataset.v=m;i.value=mlabel(m);$("mpb").hidden=true}
+document.addEventListener("click",function(e){var b=$("mpb");if(b&&!b.hidden&&!e.target.closest(".mp"))b.hidden=true});
+function saveNF(){
+ var o={mes:$("fm").dataset.v,nf:$("fn").value.trim(),forn:$("ff").value,prod:$("fi").value,valor:parseFloat($("fv").value)};
+ if(!o.mes||!o.nf||!o.forn||!o.prod||isNaN(o.valor)){alert("Preencha todos os campos.");return}
+ if(edit){Object.assign(S.nfs.find(function(x){return x.id===edit}),o)}else{o.id=uid();S.nfs.push(o)}
+ save();edit=null;draw();
+}
+function delNF(id){if(confirm("Excluir esta entrada?")){S.nfs=S.nfs.filter(function(x){return x.id!==id});save();draw()}}
+/* CADASTROS */
+function vCad(kind,title,key){
+ var e=S[key].find(function(x){return x.id===edit})||{};
+ var rows=S[key].slice().sort(function(a,b){return a.nome.localeCompare(b.nome)}).map(function(o){
+  return '<tr><td>'+esc(o.nome)+'</td><td><button class="b s y" onclick="edit=\''+o.id+'\';draw()">Editar</button> <button class="b s r" onclick="delCad(\''+key+'\',\''+o.id+'\')">Excluir</button></td></tr>'}).join("");
+ return '<h2>'+title+'</h2><div class="card"><div class="row"><label>Nome<input id="cn" value="'+esc(e.nome)+'" style="min-width:260px"></label><button class="b" onclick="saveCad(\''+key+'\')">Salvar</button>'+(edit?' <button class="b p" onclick="go(\''+kind+'\')">Cancelar</button>':"")+'</div></div><div class="card tw"><table><tr><th>Nome</th><th>Ações</th></tr>'+(rows||'<tr><td colspan="2">Nenhum cadastro.</td></tr>')+'</table></div>';
+}
+function saveCad(key){
+ var n=$("cn").value.trim();if(!n){alert("Informe o nome.");return}
+ if(S[key].some(function(x){return x.nome.toLowerCase()===n.toLowerCase()&&x.id!==edit})){alert("Já cadastrado.");return}
+ if(edit){S[key].find(function(x){return x.id===edit}).nome=n}else{S[key].push({id:uid(),nome:n})}
+ save();edit=null;draw();
+}
+function delCad(key,id){
+ var f=key==="prods"?"prod":"forn";
+ if(S.nfs.some(function(n){return n[f]===id})){alert("Há NFs vinculadas. Exclua-as antes.");return}
+ if(confirm("Excluir cadastro?")){S[key]=S[key].filter(function(x){return x.id!==id});save();draw()}
+}
+/* COMPARATIVO */
+var CP={items:[],m:["","",""]};
+function months(){var s={};S.nfs.forEach(function(n){s[n.mes]=1});return Object.keys(s).sort()}
+function price(prod,mes){var l=S.nfs.filter(function(n){return n.prod===prod&&n.mes===mes});return l.length?l[l.length-1].valor:null}
+function cls(a,b){if(a==null||b==null)return"";var d=Math.round((b-a)*100);return d<0?"ok":d>0?"up":"eq"}
+function vComp(){
+ var ms=months(),sel=function(i){return '<label>Mês '+(i+1)+'<select id="cm'+i+'" onchange="CP.m['+i+']=this.value;draw()"><option value="">Selecione</option>'+ms.map(function(m){return '<option value="'+m+'"'+(CP.m[i]===m?" selected":"")+'>'+mlabel(m)+'</option>'}).join("")+'</select></label>'};
+ var chk=S.prods.map(function(p){return '<label><input type="checkbox" '+(CP.items.indexOf(p.id)>-1?"checked":"")+' onchange="togI(\''+p.id+'\')">'+esc(p.nome)+'</label>'}).join("")||"Cadastre produtos primeiro.";
+ var cols=CP.m.filter(Boolean),t="";
+ if(cols.length&&CP.items.length){
+  t='<div class="card tw"><div class="leg" style="margin-bottom:8px"><span style="background:var(--ok)">Diminuiu</span><span style="background:var(--eq)">Igual</span><span style="background:var(--up)">Aumentou</span></div><table><tr><th>Produto</th>'+CP.m.map(function(m){return m?'<th>'+mlabel(m)+'</th>':""}).join("")+'</tr>';
+  CP.items.forEach(function(id){
+   var prev=null;t+='<tr><td>'+esc(nm(S.prods,id))+'</td>';
+   CP.m.forEach(function(m){if(!m)return;var v=price(id,m);t+='<td class="'+cls(prev,v)+'">'+(v==null?"—":money(v))+'</td>';if(v!=null)prev=v});
+   t+='</tr>'});
+  t+='</table><p style="font-size:12px">Cada mês é comparado ao anterior com valor lançado. "—" indica item sem NF no mês.</p></div>';
+ }
+ return '<h2>Comparativo</h2><div class="card"><div class="row">'+sel(0)+sel(1)+sel(2)+'</div></div><div class="card"><b>Itens para comparar</b><div class="chk" style="margin-top:8px">'+chk+'</div></div>'+t;
+}
+function togI(id){var i=CP.items.indexOf(id);if(i>-1)CP.items.splice(i,1);else CP.items.push(id);draw()}
+/* PDF */
+function vPdf(){return '<h2>Relatório PDF</h2><div class="card"><p>Gera o relatório analítico por fornecedor com a situação de cada item nos últimos 3 meses lançados (baixou, aumentou ou igual).</p><button class="b p" onclick="genPdf()">Gerar PDF</button></div>'}
+function genPdf(){
+ var ms=months().slice(-3);if(!ms.length){alert("Sem lançamentos.");return}
+ var J=window.jspdf.jsPDF,d=new J({unit:"mm",format:"a4"}),y=15,H=function(){if(y>280){d.addPage();y=15}};
+ d.setFont("helvetica","normal");d.setFontSize(9);d.setTextColor(0);
+ var L=function(t,x,b){H();d.setFont("helvetica",b?"bold":"normal");d.text(String(t).toUpperCase(),x,y)};
+ L("RELATÓRIO ANALÍTICO POR FORNECEDOR - COMPARAÇÃO DE PREÇOS",10,1);y+=5;
+ L("PERÍODO: "+ms.map(mlabel).join(" | ")+"   EMISSÃO: "+new Date().toLocaleDateString("pt-BR"),10);y+=8;
+ S.forns.slice().sort(function(a,b){return a.nome.localeCompare(b.nome)}).forEach(function(f){
+  var ps=[];S.nfs.forEach(function(n){if(n.forn===f.id&&ms.indexOf(n.mes)>-1&&ps.indexOf(n.prod)<0)ps.push(n.prod)});
+  if(!ps.length)return;
+  H();d.line(10,y-3.5,200,y-3.5);L("FORNECEDOR: "+f.nome,10,1);y+=5;
+  L("ITEM",10,1);ms.forEach(function(m,i){L(mlabel(m),95+i*28,1)});L("SITUAÇÃO",180,1);y+=5;
+  ps.forEach(function(p){
+   var vals=ms.map(function(m){var l=S.nfs.filter(function(n){return n.forn===f.id&&n.prod===p&&n.mes===m});return l.length?l[l.length-1].valor:null});
+   var v=vals.filter(function(x){return x!=null}),st="SEM COMPARAÇÃO";
+   if(v.length>1){var df=Math.round((v[v.length-1]-v[0])*100);st=df<0?"BAIXOU":df>0?"AUMENTOU":"IGUAL"}
+   L(nm(S.prods,p).slice(0,45),10);vals.forEach(function(x,i){L(x==null?"-":money(x),95+i*28)});L(st,180);y+=4.5});
+  y+=5});
+ dl("relatorio-por-fornecedor.pdf",d.output("blob"));
+}
+/* BACKUP */
+function vBkp(){return '<h2>Backup</h2><div class="card"><div class="row"><button class="b" onclick="bkp(\'json\')">Exportar Backup (.json)</button><button class="b y" onclick="bkp(\'txt\')">Exportar Backup (.txt)</button><button class="b p" onclick="$(\'bi\').click()">Importar Backup</button><input type="file" id="bi" accept=".json,.txt" style="display:none" onchange="rest(this)"></div><p style="font-size:13px">Exporta todos os dados (produtos, fornecedores e NFs) para o seu computador. Se os dados sumirem, clique em Importar Backup e escolha o arquivo .json ou .txt salvo.</p></div>'}
+function dl(name,data){var a=document.createElement("a");a.href=URL.createObjectURL(data instanceof Blob?data:new Blob([data]));a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(a.href)},2000)}
+function bkp(t){var d=new Date().toISOString().slice(0,10);dl("backup-comparacao-precos-"+d+"."+t,JSON.stringify(S,null,1))}
+function rest(i){var f=i.files[0];if(!f)return;var r=new FileReader();r.onload=function(){try{var o=JSON.parse(r.result);if(!Array.isArray(o.prods)||!Array.isArray(o.forns)||!Array.isArray(o.nfs))throw 0;if(confirm("Substituir os dados atuais pelo backup?")){S={prods:o.prods,forns:o.forns,nfs:o.nfs};save();alert("Backup importado com sucesso.");draw()}}catch(e){alert("Arquivo inválido.")}i.value=""};r.readAsText(f)}
+draw();
+</script>
+</body>
+</html>
